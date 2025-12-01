@@ -17,6 +17,11 @@ npm start
 ```
 El servidor escucha en `http://localhost:3000` (configurable con `PORT`) y usa la cadena definida en `MONGODB_URI` si está presente.
 
+## Frontend básico
+- Disponible en `http://localhost:3000/` (servido desde `public/index.html`).
+- Permite seguir todo el flujo: crear, abrir, apostar (con header `user-id`) y cerrar ruletas, mostrando las respuestas en pantalla.
+- No necesita build separado: se sirve con el mismo `npm start` del backend.
+
 ## Lógica de las APIs
 Todas las rutas están bajo `/api/roulettes` (`routes/rouletteRoutes.js`):
 - `POST /` – crea una ruleta con estado `created` y devuelve su `id`.
@@ -50,4 +55,3 @@ curl -X POST "http://localhost:3000/api/roulettes/<id>/bets" \
 - `routes/rouletteRoutes.js`: lógica HTTP de creación, apertura, apuestas y cierre.
 - `models/Roulette.js` y `models/Bet.js`: esquemas Mongoose con estados y resultados.
 - `swagger.js`: especificación OpenAPI 3.0 utilizada por Swagger UI.
-
