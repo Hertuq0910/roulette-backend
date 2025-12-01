@@ -1,0 +1,329 @@
+<!DOCTYPE html>
+<html lang="es">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Roulette API - Demo</title>
+    <style>
+      :root {
+        font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+        color: #111;
+        background: #f5f5f5;
+      }
+      body {
+        margin: 0;
+        padding: 2rem;
+      }
+      h1,
+      h2 {
+        margin-top: 0;
+      }
+      .grid {
+        display: grid;
+        gap: 1rem;
+        grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+      }
+      .card {
+        background: #fff;
+        border: 1px solid #ddd;
+        border-radius: 10px;
+        padding: 1.2rem;
+        box-shadow: 0 5px 18px rgba(0, 0, 0, 0.05);
+      }
+      label {
+        display: block;
+        margin-top: 0.6rem;
+        font-weight: 600;
+      }
+      input,
+      select,
+      button,
+      textarea {
+        width: 100%;
+        box-sizing: border-box;
+        margin-top: 0.3rem;
+        padding: 0.5rem;
+        border-radius: 6px;
+        border: 1px solid #ccc;
+        font-size: 1rem;
+      }
+      button {
+        cursor: pointer;
+        background: #111827;
+        color: #fff;
+        border: none;
+        margin-top: 0.9rem;
+      }
+      button:disabled {
+        opacity: 0.6;
+        cursor: not-allowed;
+      }
+      #log {
+        white-space: pre-line;
+        background: #0f172a;
+        color: #f8fafc;
+        padding: 1rem;
+        border-radius: 8px;
+        min-height: 120px;
+      }
+      small {
+        color: #555;
+      }
+      .modal-overlay {
+        position: fixed;
+        inset: 0;
+        background: rgba(15, 23, 42, 0.75);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        visibility: hidden;
+        opacity: 0;
+        transition: opacity 0.25s ease;
+      }
+      .modal-overlay.active {
+        visibility: visible;
+        opacity: 1;
+      }
+      .modal {
+        background: #fff;
+        border-radius: 14px;
+        width: min(90%, 420px);
+        padding: 1.5rem;
+        box-shadow: 0 12px 50px rgba(0, 0, 0, 0.35);
+        text-align: center;
+      }
+      .modal h3 {
+        margin-top: 0;
+      }
+      .modal p {
+        margin: 0.4rem 0;
+      }
+      .modal ul {
+        padding-left: 1.2rem;
+        text-align: left;
+      }
+      .modal button {
+        width: auto;
+        padding-inline: 1.5rem;
+      }
+    </style>
+  </head>
+  <body>
+    <h1>Roulette API Demo</h1>
+    <p>
+      Esta interfaz ligera consume las APIs del backend propios. Sigue el flujo:
+      crea una ruleta, ábrela, registra apuestas y ciérrala para obtener los
+      resultados.
+    </p>
+
+    <div class="grid">
+      <section class="card">
+        <h2>1. Crear ruleta</h2>
+        <button id="create-roulette">Crear</button>
+        <p>
+          Ruleta activa:
+          <strong id="roulette-id">N/A</strong>
+        </p>
+      </section>
+
+      <section class="card">
+        <h2>2. Control de ruleta</h2>
+        <p>Usa el ID actual para abrir o cerrar la ruleta.</p>
+        <button id="open-roulette">Abrir ruleta</button>
+        <button id="close-roulette" style="margin-top: 0.5rem">Cerrar ruleta</button>
+        <small>Los botones se deshabilitan si no hay ID seleccionado.</small>
+      </section>
+
+      <section class="card">
+        <h2>3. Registrar apuesta</h2>
+        <label for="user-id">user-id (header)</label>
+        <input id="user-id" placeholder="demo-user-1" />
+
+        <label for="bet-type">Tipo de apuesta</label>
+        <select id="bet-type">
+          <option value="color">color</option>
+          <option value="number">number</option>
+        </select>
+
+        <div id="number-field" style="display: none">
+          <label for="bet-number">Número (0-36)</label>
+          <input type="number" id="bet-number" min="0" max="36" />
+        </div>
+
+        <div id="color-field">
+          <label for="bet-color">Color</label>
+          <select id="bet-color">
+            <option value="red">red</option>
+            <option value="black">black</option>
+          </select>
+        </div>
+
+        <label for="bet-amount">Monto</label>
+        <input type="number" id="bet-amount" min="1" max="10000" value="100" />
+
+        <button id="place-bet">Colocar apuesta</button>
+      </section>
+    </div>
+
+    <section class="card" style="margin-top: 1.5rem">
+      <h2>Registro</h2>
+      <div id="log">Esperando acciones…</div>
+    </section>
+
+    <div class="modal-overlay" id="winner-modal">
+      <div class="modal">
+        <h3>Resultado</h3>
+        <p id="winner-summary">No hay resultados aún.</p>
+        <ul id="winner-list"></ul>
+        <button id="winner-close">Cerrar</button>
+      </div>
+    </div>
+
+    <script>
+      const apiBase = '/api/roulettes';
+      const rouletteIdEl = document.getElementById('roulette-id');
+      const logEl = document.getElementById('log');
+      const createBtn = document.getElementById('create-roulette');
+      const openBtn = document.getElementById('open-roulette');
+      const closeBtn = document.getElementById('close-roulette');
+      const placeBetBtn = document.getElementById('place-bet');
+      const userIdInput = document.getElementById('user-id');
+      const betTypeSelect = document.getElementById('bet-type');
+      const numberField = document.getElementById('number-field');
+      const colorField = document.getElementById('color-field');
+      const betNumberInput = document.getElementById('bet-number');
+      const betColorSelect = document.getElementById('bet-color');
+      const betAmountInput = document.getElementById('bet-amount');
+      const winnerModal = document.getElementById('winner-modal');
+      const winnerSummary = document.getElementById('winner-summary');
+      const winnerList = document.getElementById('winner-list');
+      const winnerClose = document.getElementById('winner-close');
+
+      let currentRouletteId = '';
+
+      function setRouletteId(id) {
+        currentRouletteId = id;
+        rouletteIdEl.textContent = id || 'N/A';
+        openBtn.disabled = closeBtn.disabled = !id;
+        placeBetBtn.disabled = !id;
+      }
+
+      function log(message, data) {
+        const time = new Date().toLocaleTimeString();
+        const payload = data ? '\n' + JSON.stringify(data, null, 2) : '';
+        logEl.textContent = `[${time}] ${message}${payload}\n\n${logEl.textContent}`;
+      }
+
+      function showWinnerModal(result) {
+        const winners = (result.bets || []).filter(bet => bet.isWinner);
+        winnerList.innerHTML = '';
+
+        if (winners.length) {
+          winnerSummary.textContent = `Número ganador ${result.winningNumber} (${result.winningColor}).`;
+          winners.forEach(bet => {
+            const option = bet.betType === 'number' ? `Número ${bet.number}` : `Color ${bet.color}`;
+            const item = document.createElement('li');
+            item.textContent = `${bet.userId} ganó apostando a ${option} y recibió ${bet.payout}`;
+            winnerList.appendChild(item);
+          });
+        } else {
+          winnerSummary.textContent = 'La ruleta se cerró sin ganadores esta vez.';
+        }
+
+        winnerModal.classList.add('active');
+      }
+
+      winnerClose.addEventListener('click', () => winnerModal.classList.remove('active'));
+      winnerModal.addEventListener('click', event => {
+        if (event.target === winnerModal) {
+          winnerModal.classList.remove('active');
+        }
+      });
+
+      async function callApi(url, options = {}) {
+        const response = await fetch(url, options);
+        const data = await response.json().catch(() => ({}));
+        if (!response.ok) {
+          throw new Error(data.message || response.statusText);
+        }
+        return data;
+      }
+
+      createBtn.addEventListener('click', async () => {
+        try {
+          const data = await callApi(apiBase, { method: 'POST' });
+          setRouletteId(data.id);
+          log('Ruleta creada', data);
+        } catch (error) {
+          log('Error creando ruleta: ' + error.message);
+        }
+      });
+
+      openBtn.addEventListener('click', async () => {
+        if (!currentRouletteId) return;
+        try {
+          const data = await callApi(`${apiBase}/${currentRouletteId}/open`, { method: 'PATCH' });
+          log('Apertura de ruleta', data);
+        } catch (error) {
+          log('Error al abrir: ' + error.message);
+        }
+      });
+
+      closeBtn.addEventListener('click', async () => {
+        if (!currentRouletteId) return;
+        try {
+          const data = await callApi(`${apiBase}/${currentRouletteId}/close`, { method: 'POST' });
+          log('Cierre de ruleta', data);
+          showWinnerModal(data);
+        } catch (error) {
+          log('Error al cerrar: ' + error.message);
+        }
+      });
+
+      betTypeSelect.addEventListener('change', () => {
+        const type = betTypeSelect.value;
+        numberField.style.display = type === 'number' ? 'block' : 'none';
+        colorField.style.display = type === 'color' ? 'block' : 'none';
+      });
+
+      placeBetBtn.addEventListener('click', async () => {
+        if (!currentRouletteId) return;
+        const userId = userIdInput.value.trim();
+        if (!userId) {
+          alert('Ingresa un user-id');
+          return;
+        }
+
+        const betType = betTypeSelect.value;
+        const payload = {
+          betType,
+          amount: Number(betAmountInput.value)
+        };
+
+        if (betType === 'number') {
+          payload.number = Number(betNumberInput.value);
+        } else {
+          payload.color = betColorSelect.value;
+        }
+
+        try {
+          const data = await callApi(`${apiBase}/${currentRouletteId}/bets`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'user-id': userId
+            },
+            body: JSON.stringify(payload)
+          });
+          log('Apuesta creada', data);
+        } catch (error) {
+          log('Error apostando: ' + error.message);
+        }
+      });
+
+      // Estado inicial
+      setRouletteId('');
+      betTypeSelect.dispatchEvent(new Event('change'));
+    </script>
+  </body>
+</html>
